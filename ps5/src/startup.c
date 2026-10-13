@@ -26,5 +26,6 @@ ps5_startup(void)
    ps5sr_log_start(PS5_TITLE_NAME);
    say("SpaceRanger for the PlayStation 5: starting (log: /app0/spaceranger-log.txt)");
    /* The shell's splash covers the title's frames until it is dismissed. */
+   say("dismissing the splash");
    say("splash dismissed: %d", sceSystemServiceHideSplashScreen());
 }

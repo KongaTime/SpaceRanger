@@ -2,11 +2,16 @@
  * SpaceRanger for the PlayStation 5 - the title's log: klog and a file.
  *
  * Everything the title writes to standard output or standard error goes to
- * klog (each line prefixed with the title's name), as the platform layer's
- * ps5_klog_capture_stderr does, and also to spaceranger-log.txt in the title's
- * folder (/data/homebrew/<TITLE_ID>/), which can be read over FTP without a
- * klog reader. A title may not dup2, so the streams themselves are moved to a
- * pipe; a thread writes each line that arrives to both.
+ * spaceranger-log.txt in the title's folder (/data/homebrew/<TITLE_ID>/),
+ * readable over FTP. A title may not dup2, so the streams themselves are
+ * moved to the file, unbuffered: every line is in the file before the program
+ * goes on, so the last line written before a title dies is there. (A pipe
+ * read by a thread, as the platform layer's klog capture does, loses what is
+ * still in the pipe when the title dies.)
+ *
+ * main is wrapped (--wrap=main in ps5/tools/link-title.sh) to log when it
+ * starts and what it returns, and a thread logs "alive: N s" every five
+ * seconds, which tells a hang from a crash.
  *
  * A fatal signal (a crash, abort()) writes its report straight to the file:
  * the signal, the faulting address and instruction, and a frame-pointer walk
@@ -32,13 +37,9 @@
 #include <string.h>
 #include <unistd.h>
 
-int sceKernelDebugOutText(int channel, const char *text);
-
 #define LOG_PATH "/app0/spaceranger-log.txt"
 
 static int log_fd = -1;
-static const char *log_prefix = "";
-static int log_read_end = -1;
 extern char __ehdr_start; /* the start of the title's image, from the linker */
 
 /* ------------------------------------------------- async-signal-safe output */
@@ -68,33 +69,26 @@ raw_hex(const char *label, uint64_t value)
 /* --------------------------------------------------------------- the tee */
 
 static void *
-log_reader(void *unused)
+log_alive(void *unused)
 {
    (void)unused;
-   char chunk[1024];
-   char line[2048];
-   size_t length = 0;
-   for (;;) {
-      const ssize_t got = read(log_read_end, chunk, sizeof(chunk));
-      if (got <= 0) {
-         if (got < 0 && errno == EINTR)
-            continue;
-         break;
-      }
-      for (ssize_t i = 0; i < got; i++) {
-         line[length++] = chunk[i];
-         if (chunk[i] == '\n' || length == sizeof(line) - 1) {
-            line[length] = '\0';
-            if (log_fd >= 0)
-               (void)write(log_fd, line, length);
-            char text[sizeof(line) + 64];
-            snprintf(text, sizeof(text), "%s%s%s", log_prefix, line, chunk[i] == '\n' ? "" : "\n");
-            sceKernelDebugOutText(0, text);
-            length = 0;
-         }
-      }
+   for (unsigned seconds = 5;; seconds += 5) {
+      sleep(5);
+      fprintf(stderr, "alive: %u s\n", seconds);
    }
    return NULL;
+}
+
+/* main, as the CRT calls it (--wrap=main) */
+int __real_main(int argc, char **argv, char **envp);
+
+int
+__wrap_main(int argc, char **argv, char **envp)
+{
+   fprintf(stderr, "==== SpaceRanger: static constructors done, main starts\n");
+   const int status = __real_main(argc, argv, envp);
+   fprintf(stderr, "==== SpaceRanger: main returned %d\n", status);
+   return status;
 }
 
 /* ------------------------------------------------------- the crash report */
@@ -168,25 +162,20 @@ log_exit(void)
 void
 ps5sr_log_start(const char *prefix)
 {
-   static char saved_prefix[64];
-   snprintf(saved_prefix, sizeof(saved_prefix), "[%s] ", prefix);
-   log_prefix = saved_prefix;
+   (void)prefix;
    log_fd = open(LOG_PATH, O_WRONLY | O_CREAT | O_TRUNC, 0666);
 
-   int ends[2];
-   if (pipe(ends) == 0) {
-      FILE *stream = fdopen(ends[1], "w");
+   if (log_fd >= 0) {
+      FILE *stream = fdopen(log_fd, "a");
       if (stream != NULL) {
-         setvbuf(stream, NULL, _IOLBF, 0);
-         log_read_end = ends[0];
-         pthread_t thread;
-         if (pthread_create(&thread, NULL, log_reader, NULL) == 0) {
-            pthread_detach(thread);
-            stderr = stream;
-            stdout = stream;
-         }
+         setvbuf(stream, NULL, _IONBF, 0);
+         stderr = stream;
+         stdout = stream;
       }
    }
+   pthread_t thread;
+   if (pthread_create(&thread, NULL, log_alive, NULL) == 0)
+      pthread_detach(thread);
 
    static uint8_t alternate_stack[128 * 1024];
    stack_t alternate = {0};

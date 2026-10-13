@@ -101,6 +101,8 @@ for name in "${platform_bound[@]}"; do
     radv_link_flags+=("--defsym=$name=ps5_$name")
 done
 radv_link_flags+=(--version-script "$work/link/shims-local.map")
+# main through ps5/src/log.c, which logs its start and its return
+radv_link_flags+=(--wrap=main)
 "$sdk/bin/prospero-lld" "${radv_linker_script[@]}" --eh-frame-hdr "${radv_link_flags[@]}" \
     --version-script "$native/app-symbols.map" --exclude-libs=ALL \
     -e _start -o "$work/link/llvm-pie.elf" \

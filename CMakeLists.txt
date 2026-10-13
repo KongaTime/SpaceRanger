@@ -24,6 +24,15 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# The recompiled game, its hooks and the runtime read and write RDRAM through
+# pointer casts of every width (MEM_W, MEM_H, MEM_B, the FPR unions), which
+# breaks C's aliasing rules. MSVC never relies on them; clang and GCC do at -O2
+# and miscompile the game (the RNC decompressor, func_8001AAE0, writes wrong
+# bytes and Start Game crashes). Every target is built without that assumption.
+if(NOT MSVC)
+    add_compile_options(-fno-strict-aliasing)
+endif()
+
 # Keep optimized native builds useful for startup/crash investigation.
 option(TS2_RELEASE_SYMBOLS "Generate debugging symbols for Release builds" OFF)
 if(MSVC AND TS2_RELEASE_SYMBOLS)

@@ -113,7 +113,11 @@ extern "C" void ts2_trace_actor_submission(uint8_t* rdram, const recomp_context*
     if (!enabled || rdram == nullptr || ctx == nullptr) return;
     // These hooks execute on the guest graphics producer. Thread-local storage
     // also prevents accidental cross-thread interleaving if another caller is added.
-    static thread_local Trace trace;
+    // Allocated on first use: the 9 MiB buffer as a thread_local object would be
+    // static TLS, which Linux reserves at the top of every thread's stack.
+    static thread_local Trace* trace_storage = nullptr;
+    if (trace_storage == nullptr) trace_storage = new Trace();
+    Trace& trace = *trace_storage;
     if (pc == 0x8000E990u) {
         ++trace.frame;
 #ifdef _WIN32

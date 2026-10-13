@@ -49,7 +49,7 @@ set(RT64_FILE_TO_C "${CMAKE_BINARY_DIR}/host/file_to_c" CACHE FILEPATH "file_to_
 
 # The console: start-up, klog, the pad, sound, the title's exit, and the libc
 # names a title cannot import
-add_library(ps5_platform STATIC ${ps5}/src/platform.c ${ps5}/src/shims.c ${ps5}/src/startup.c)
+add_library(ps5_platform STATIC ${ps5}/src/platform.c ${ps5}/src/shims.c ${ps5}/src/startup.c ${ps5}/src/log.c)
 target_include_directories(ps5_platform PUBLIC ${ps5}/src)
 file(READ ${ps5}/sce_sys/param.json ps5_param_json)
 string(JSON PS5_TITLE_NAME GET "${ps5_param_json}" localizedParameters en-US titleName)

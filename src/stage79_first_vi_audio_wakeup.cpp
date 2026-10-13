@@ -16809,12 +16809,19 @@ static int run_ts2_v79_canonical_runtime(bool check_assets_only = false) {
     const auto runtime_directory = std::filesystem::u8path(base_path);
     SDL_free(base_path);
     std::error_code path_error;
+#if defined(__PROSPERO__)
+    // The PS5 refuses a title chdir (EPERM). Nothing here depends on the
+    // working directory there: the game's folder (/app0), the config folder and
+    // RecompFrontend's assets are absolute paths.
+    (void)path_error;
+#else
     std::filesystem::current_path(runtime_directory, path_error);
     if (path_error) {
         std::fprintf(stderr, "TS2 STARTUP: cannot open executable directory: %s\n",
             path_error.message().c_str());
         return 8;
     }
+#endif
     for (const char* asset : {"recomp.rcss", "InterVariable.ttf",
                              "NotoEmoji-Regular.ttf", "promptfont/promptfont.ttf"}) {
         const auto asset_path = runtime_directory / "assets" / asset;
@@ -17309,8 +17316,10 @@ static void ts2_initialize_recompfrontend_metadata() {
     recompui::register_launcher_init_callback(ts2_launcher_init);
     recompui::register_launcher_update_callback(ts2_launcher_update);
 
+    // The exe's folder (main made it the working directory where it can;
+    // on the PS5 it is /app0 and the working directory stays where it was).
     recomp::register_config_path(
-        std::filesystem::current_path() / "spaceranger-config"
+        ts2_exe_dir() / "spaceranger-config"
     );
 
     recompinput::players::set_single_player_mode(true);

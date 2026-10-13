@@ -520,7 +520,7 @@ index cace84f..dd9f92f 100644
      }
      return nullptr;
 diff --git a/recompui/src/util/file.cpp b/recompui/src/util/file.cpp
-index 7ee84ed..3573626 100644
+index 7ee84ed..fda2dca 100644
 --- a/recompui/src/util/file.cpp
 +++ b/recompui/src/util/file.cpp
 @@ -1,7 +1,9 @@
@@ -571,3 +571,14 @@ index 7ee84ed..3573626 100644
          // Deduce local app data path.
          PWSTR known_path = NULL;
          HRESULT result = SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, NULL, &known_path);
+@@ -119,6 +136,10 @@ namespace recompui {
+         return file::apple::get_bundle_resource_directory();
+ #elif defined(__linux__) && defined(RECOMP_FLATPAK)
+         return "/app/bin";
++#elif defined(__PROSPERO__)
++        // The title's folder: a title may not chdir there (EPERM), so assets
++        // are found by their absolute path
++        return "/app0";
+ #else
+         return "";
+ #endif

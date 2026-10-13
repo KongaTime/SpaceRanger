@@ -476,6 +476,11 @@ endif()
 
 if(MSVC)
     target_compile_options(spaceranger PRIVATE /W3 /EHsc)
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+    # The recompiled RSP microcode (rsp/ts2_aspMain.cpp, through librecomp's
+    # rsp_vu_impl.hpp) uses SSSE3 and SSE4.1 intrinsics, which MSVC allows
+    # without a flag. (The PS5's Zen 2 target has them already.)
+    target_compile_options(spaceranger PRIVATE -msse4.1)
 endif()
 
 if(WIN32)

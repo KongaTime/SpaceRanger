@@ -63,6 +63,23 @@ int32_t ts2_room_selected_records(uint8_t* rdram, uint32_t row_offset, int32_t v
 int32_t ts2_room_bounded(uint8_t* rdram, uint32_t row_offset, int32_t bounded);
 uint32_t ts2_object_list(uint32_t original);
 
+// Functions the config leaves out of the recompilation ("ignored") and the
+// libultra calls N64Recomp turns into *_recomp, which the generated code calls
+// but funcs.h does not declare. The host provides them: src/ (the ts2_*
+// compat sources) and librecomp. C99 (clang) requires the declarations.
+void func_800980E0(uint8_t* rdram, recomp_context* ctx);
+void func_800981A0(uint8_t* rdram, recomp_context* ctx);
+void func_80098240(uint8_t* rdram, recomp_context* ctx);
+void func_800982E0(uint8_t* rdram, recomp_context* ctx);
+void func_8009C2C0(uint8_t* rdram, recomp_context* ctx);
+void func_800A06A0(uint8_t* rdram, recomp_context* ctx);
+void osPfsNumFiles_recomp(uint8_t* rdram, recomp_context* ctx);
+void osPfsRepairId_recomp(uint8_t* rdram, recomp_context* ctx);
+void osYieldThread_recomp(uint8_t* rdram, recomp_context* ctx);
+void __osSetCompare_recomp(uint8_t* rdram, recomp_context* ctx);
+void __osPopThread_recomp(uint8_t* rdram, recomp_context* ctx);
+void __osEnqueueThread_recomp(uint8_t* rdram, recomp_context* ctx);
+
 typedef int (*ts2_thread_create_bridge_callback_t)(
     uint8_t* rdram,
     uint32_t thread_addr,

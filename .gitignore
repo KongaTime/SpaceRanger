@@ -6,6 +6,9 @@
 /dist/
 /out/
 
+# The PS5 home-screen art from the game (ps5/tools/title-art.py): stays on the builder's machine
+/ps5/title-art/
+
 # User-supplied ROMs
 /rom/*
 !/rom/README.md

@@ -72,6 +72,33 @@ ps5/tools/deploy.sh                  # to /data/homebrew/PPSA99264/ over FTP
 The game's link goes to `ps5/tools/link-title.sh`, which links with RADV, signs
 `eboot.bin` and writes the title folder.
 
+## Home-screen art
+
+By default the title uses the project's own icon (`ps5/sce_sys/icon0.png`) and
+no background. To use the game's cover and key art instead, put them in
+`ps5/title-art/`, which git ignores, and run the script before building:
+
+```bash
+mkdir -p ps5/title-art
+cp cover.png    ps5/title-art/icon-source.png        # square
+cp backdrop.png ps5/title-art/background-source.png  # 16:9, or a wide banner
+python3 ps5/tools/title-art.py                       # needs Pillow and etcpak
+ps5/tools/build.sh
+```
+
+The script writes `ps5/title-art/sce_sys/`: `icon0.png` (512x512), plus
+`pic0.dds` and `pic1.dds` (3840x2160 BC7). Those are the backgrounds the home
+screen shows when the title is selected and while it launches. A banner wider
+than 16:9 is set on the bottom edge, and its sky is extended upward. Keep the
+subject on the right, because the shell draws the title name and Play button on
+the left. The script also writes `ps5/title-art/background-preview.png` so you
+can check the result.
+
+The console keeps the art it read when it registered the title. Copying new
+files over `sce_sys/` doesn't change the home screen. To make it pick up the new
+art, use ps5upload to upload a `PPSA99264` folder that holds only the new
+`sce_sys/`, overriding the installed title.
+
 ## Install
 
 1. Copy `dist/PPSA99264/` to the console as `/data/homebrew/PPSA99264/`, with

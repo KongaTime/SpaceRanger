@@ -142,8 +142,12 @@ mkdir -p "$app/sce_sys" "$app/sce_module"
 "$tool" self --sign --in "$work/eboot.elf.new" --out "$app/eboot.bin" --magic 0x1D3D154F
 "$tool" self --inspect --file "$app/eboot.bin" > /dev/null
 cp "$param" "$app/sce_sys/param.json"
-for asset in icon0.png pic0.dds pic1.dds snd0.at9; do
-    [[ -f $ps5/sce_sys/$asset ]] && cp "$ps5/sce_sys/$asset" "$app/sce_sys/$asset"
+# The home-screen art: the project's own, then the builder's (ps5/title-art/,
+# kept out of git: ps5/tools/title-art.py) over it
+for art in "$ps5/sce_sys" "$ps5/title-art/sce_sys"; do
+    for asset in icon0.png pic0.dds pic1.dds snd0.at9; do
+        [[ -f $art/$asset ]] && cp "$art/$asset" "$app/sce_sys/$asset"
+    done
 done
 (cd "$vulkan/runtime" && sha256sum --check --strict --quiet libc.prx.sha256)
 cp "$vulkan/runtime/libc.prx" "$app/sce_module/libc.prx"

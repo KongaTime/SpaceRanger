@@ -1287,8 +1287,11 @@ functions = [
   { name = "osPiStartDma", vram = 0x80091E20, size = 0xA8 },
   { name = "osJamMesg", vram = 0x80091EE0, size = 0x134 },
   { name = "func_80092020", vram = 0x80092020, size = 0x20 },
-  { name = "osMotorStart", vram = 0x80092040, size = 0x1C0 },
-  { name = "osMotorStop", vram = 0x80092200, size = 0x1C0 },
+  # libultra's motor.c defines osMotorStop first: 0x80092040 sends the packet
+  # osMotorInit builds from its zero-filled buffer (0x801F4210), 0x80092200 the
+  # one from its one-filled buffer (0x801F2CA0).
+  { name = "osMotorStop", vram = 0x80092040, size = 0x1C0 },
+  { name = "osMotorStart", vram = 0x80092200, size = 0x1C0 },
   { name = "osMotorInit", vram = 0x800923C0, size = 0x4CC },
   { name = "func_80092890", vram = 0x80092890, size = 0x64 },
   { name = "func_800928A0", vram = 0x800928A0, size = 0x54 },

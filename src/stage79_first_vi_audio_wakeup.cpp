@@ -11495,10 +11495,10 @@ int run_stage61() {
         func_80092020);
     recomp::overlays::add_loaded_function(
         static_cast<int32_t>(0x80092040u),
-        osMotorStart_recomp);
+        osMotorStop_recomp);
     recomp::overlays::add_loaded_function(
         static_cast<int32_t>(0x80092200u),
-        osMotorStop_recomp);
+        osMotorStart_recomp);
     recomp::overlays::add_loaded_function(
         static_cast<int32_t>(0x800923C0u),
         osMotorInit_recomp);
@@ -15678,10 +15678,10 @@ static void ts2_v79_register_native_maps() {
             func_80092020);
     recomp::overlays::add_loaded_function(
             static_cast<int32_t>(0x80092040u),
-            osMotorStart_recomp);
+            osMotorStop_recomp);
     recomp::overlays::add_loaded_function(
             static_cast<int32_t>(0x80092200u),
-            osMotorStop_recomp);
+            osMotorStart_recomp);
     recomp::overlays::add_loaded_function(
             static_cast<int32_t>(0x800923C0u),
             osMotorInit_recomp);

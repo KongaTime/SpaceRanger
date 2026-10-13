@@ -46,6 +46,23 @@ void ts2_write_emitter_history(const char* path);
 void ts2_vi_mirror_mode(uint8_t* rdram, uint32_t mode_addr);
 void ts2_vi_mirror_black(uint32_t active);
 
+// Draw-distance and object-list hooks (config/*.recomp.toml), defined in
+// src/render_support.cpp. MSVC compiled the hooks against implicit
+// declarations; C99 and later (clang) require these.
+int32_t ts2_draw_limit(int32_t value);
+uint32_t ts2_dl_buffer(uint8_t* rdram, uint32_t original);
+int32_t ts2_dl_size(uint32_t base, int32_t original);
+int32_t ts2_vertex_capacity(int32_t original);
+uint32_t ts2_vertex_buffer(uint8_t* rdram, uint32_t original);
+uint32_t ts2_matrix_buffer(uint32_t original);
+void ts2_room_mesh_bounds(uint8_t* rdram, recomp_context* ctx);
+uint32_t ts2_instance_table(uint32_t original);
+void ts2_note_actor(uint8_t* rdram, uint32_t actor);
+int32_t ts2_room_selected(int32_t visible);
+int32_t ts2_room_selected_records(uint8_t* rdram, uint32_t row_offset, int32_t visible);
+int32_t ts2_room_bounded(uint8_t* rdram, uint32_t row_offset, int32_t bounded);
+uint32_t ts2_object_list(uint32_t original);
+
 typedef int (*ts2_thread_create_bridge_callback_t)(
     uint8_t* rdram,
     uint32_t thread_addr,

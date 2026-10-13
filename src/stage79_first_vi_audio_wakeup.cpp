@@ -163,9 +163,22 @@ static bool ts2_ensure_rom(std::u8string& game_id, bool interactive) {
 #include <cstddef>
 #include <cstring>
 #include <memory>
+#ifdef _WIN32
 #include <objbase.h>
+#endif
 #include <SDL.h>
-#include <SDL_syswm.h>
+#ifdef _WIN32
+#include <SDL_syswm.h> // the Win32 window handle; on Linux it would pull in X11's macros
+#endif
+
+// The Stage61 harness (run_stage61) and its live RT64 bridge are Windows-only
+// diagnostics that main() no longer reaches: it runs
+// run_ts2_v79_canonical_runtime. Other platforms leave them out.
+#if defined(_WIN32)
+#define TS2_STAGE61_HARNESS 1
+#else
+#define TS2_STAGE61_HARNESS 0
+#endif
 #include "hle/rt64_application.h"
 #include "gbi/rt64_gbi.h"
 #include "gbi/rt64_f3d.h"
@@ -7620,6 +7633,7 @@ extern "C" void ts2_probe_979a0_call(
     std::fflush(stderr);
 }
 
+#if TS2_STAGE61_HARNESS
 // TS2 LIVE RT64 GFX BRIDGE BEGIN
 static SDL_Window* g_ts2_rt64_window = nullptr;
 static HWND g_ts2_rt64_hwnd = nullptr;
@@ -8100,6 +8114,7 @@ extern "C" void ts2_rsp_task_start_bridge(
 
     ctx->r4 = saved_r4;
 }
+#endif // TS2_STAGE61_HARNESS (live RT64 bridge and its RSP task bridges)
 extern "C" int stage61_recv_bridge(
     uint8_t* rdram,
     uint32_t queue_addr,
@@ -8989,6 +9004,7 @@ static int ts2_v145_call_recomp_entrypoint_seh(
 }
 #endif
 
+#if TS2_STAGE61_HARNESS
 int run_stage61() {
 #if defined(_WIN32)
     ts2_install_access_violation_probe();
@@ -13258,6 +13274,7 @@ int run_stage61() {
     return 0;
 
 }
+#endif // TS2_STAGE61_HARNESS
 
 } // namespace
 
@@ -16702,7 +16719,8 @@ static ultramodern::renderer::WindowHandle ts2_v79_create_window(
         GetCurrentThreadId()
     };
 #else
-    return {};
+    // RT64 presents through SDL's Vulkan surface: the handle is the window.
+    return window;
 #endif
 }
 

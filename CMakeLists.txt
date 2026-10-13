@@ -74,6 +74,14 @@ execute_process(
 message(STATUS "N64ModernRuntime source commit: ${TS2_N64MR_COMMIT}")
 message(STATUS "RT64 source commit: ${TS2_RT64_COMMIT}")
 
+# Linux: RT64 draws into the SDL window through SDL's Vulkan surface. Every
+# target that sees plume::RenderWindow (RT64, plume, RecompFrontend and the
+# game) has to agree on it, so the definitions are global.
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(RT64_SDL_WINDOW_VULKAN ON CACHE BOOL "Build RT64 to expect an SDL Window outside of Windows" FORCE)
+    add_compile_definitions(RT64_SDL_WINDOW_VULKAN PLUME_SDL_VULKAN_ENABLED)
+endif()
+
 add_subdirectory(
     "${N64MR_DIR}"
     "${CMAKE_CURRENT_BINARY_DIR}/N64ModernRuntime"
@@ -154,6 +162,13 @@ if(WIN32)
         "${RT64_DIR}/src/contrib/dxc/bin/x64/dxc.exe"
     )
     add_compile_definitions(NOMINMAX)
+elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Linux")
+    # RT64's Linux DXC, as RT64 sets it in its own directory. A PS5 build is
+    # a cross build on a Linux host, so it uses this one too.
+    set(DXC
+        "LD_LIBRARY_PATH=${RT64_DIR}/src/contrib/dxc/lib/x64"
+        "${RT64_DIR}/src/contrib/dxc/bin/x64/dxc-linux"
+    )
 endif()
 
 add_subdirectory(
@@ -323,6 +338,20 @@ if(WIN32)
         target_link_libraries(recompinput PUBLIC ts2_frontend_sdl2)
         target_link_libraries(recompui PRIVATE ts2_frontend_sdl2)
     endif()
+else()
+    # Elsewhere SDL2 is the system's (Linux) or the PS5 port's (ps5/), found
+    # the way RT64 finds it in its own directory.
+    find_package(SDL2 REQUIRED)
+    set(TS2_FRONTEND_SDL2_INCLUDE ${SDL2_INCLUDE_DIRS})
+    if(TARGET SDL2::SDL2)
+        set(TS2_FRONTEND_SDL2_LIBRARY SDL2::SDL2)
+    else()
+        set(TS2_FRONTEND_SDL2_LIBRARY ${SDL2_LIBRARIES})
+    endif()
+    target_include_directories(recompinput PUBLIC ${TS2_FRONTEND_SDL2_INCLUDE})
+    target_include_directories(recompui PRIVATE ${TS2_FRONTEND_SDL2_INCLUDE})
+    target_link_libraries(recompinput PUBLIC ${TS2_FRONTEND_SDL2_LIBRARY})
+    target_link_libraries(recompui PRIVATE ${TS2_FRONTEND_SDL2_LIBRARY})
 endif()
 
 # Baseline linking is intentionally emitted later, after the target definition.
@@ -354,6 +383,15 @@ target_include_directories(spaceranger_recompiled PRIVATE
 )
 if(MSVC)
     target_compile_options(spaceranger_recompiled PRIVATE /W0)
+endif()
+# The config's hooks call ts2_* helpers from generated C. Declare them there
+# too: clang, like any C99 compiler, rejects implicit declarations.
+if(MSVC)
+    target_compile_options(spaceranger_recompiled PRIVATE
+        "/FI${CMAKE_CURRENT_LIST_DIR}/include/ts2_bridge_layer.h")
+else()
+    target_compile_options(spaceranger_recompiled PRIVATE
+        -include "${CMAKE_CURRENT_LIST_DIR}/include/ts2_bridge_layer.h")
 endif()
 
 add_executable(spaceranger
@@ -399,7 +437,7 @@ target_include_directories(spaceranger PRIVATE
     "${RT64_DIR}/src/contrib/dxc/inc"
     "${RT64_DIR}/src/contrib/mupen64plus-core/src/api"
     "${RT64_DIR}/src/contrib/nativefiledialog-extended/src/include"
-    "${RT64_DIR}/src/contrib/mupen64plus-win32-deps/SDL2-2.26.3/include"
+    ${TS2_FRONTEND_SDL2_INCLUDE}
 )
 
 target_compile_definitions(spaceranger PRIVATE
@@ -493,6 +531,9 @@ target_link_libraries(spaceranger PRIVATE
     recompui
     recompinput
 )
+# recompui draws through RT64. Say so, so that order-sensitive linkers (GNU ld,
+# lld for the PS5) see rt64 after it.
+target_link_libraries(recompui PRIVATE rt64)
 # TS2 OLDNATIVE V59 LATE FRONTEND LINK END
 # =============================================================================
 # TS2 OLDNATIVE V64 CANONICAL FRONTEND COMPILE PROBE

@@ -339,7 +339,7 @@ index 277a421..612babd 100644
  
  void recompui::set_render_hooks() {
 diff --git a/recompui/src/renderer/rt64_render_context.cpp b/recompui/src/renderer/rt64_render_context.cpp
-index a7954c7..48239ca 100644
+index a7954c7..7c27418 100644
 --- a/recompui/src/renderer/rt64_render_context.cpp
 +++ b/recompui/src/renderer/rt64_render_context.cpp
 @@ -1,9 +1,12 @@
@@ -382,21 +382,29 @@ index a7954c7..48239ca 100644
      switch (mode) {
          case ultramodern::renderer::PresentationMode::Console:
              return RT64::EnhancementConfiguration::Presentation::Mode::Console;
-@@ -337,11 +359,33 @@ renderer::RT64Context::RT64Context(uint8_t* rdram, ultramodern::renderer::Window
+@@ -337,11 +359,41 @@ renderer::RT64Context::RT64Context(uint8_t* rdram, ultramodern::renderer::Window
  
  renderer::RT64Context::~RT64Context() = default;
  
++// Kept in the binary (MSVC exports them; elsewhere they are only marked used,
++// since a PS5 title may not export symbols).
++#if defined(_MSC_VER)
++#define TS2_MARKER_EXPORT __declspec(dllexport)
++#else
++#define TS2_MARKER_EXPORT __attribute__((used))
++#endif
++
 +extern "C" uint8_t* ts2_g98b_get_current_rdram_snapshot();
 +extern "C" const char* ts2_g98b_rt64_ownership_marker();
 +
-+extern "C" __declspec(dllexport) const char* ts2_g98b_runtime_marker() {
++extern "C" TS2_MARKER_EXPORT const char* ts2_g98b_runtime_marker() {
 +    return "TS2 G98B DKRR SNAPSHOT QUIT + WORKLOAD PRESENT 0003 0004 NO ABI CHANGE ACTIVE";
 +}
 +
 +// G98B Rev2 proof anchor: this exported proxy makes the RT64 ownership
 +// marker a live observable return value, so release/LTCG cannot discard
 +// the RT64 proof symbol/string as a side-effect-free unused call.
-+extern "C" __declspec(dllexport) const char* ts2_g98b_rt64_marker_proxy() {
++extern "C" TS2_MARKER_EXPORT const char* ts2_g98b_rt64_marker_proxy() {
 +    return ts2_g98b_rt64_ownership_marker();
 +}
 +
@@ -417,7 +425,7 @@ index a7954c7..48239ca 100644
  }
  
  void renderer::RT64Context::send_dummy_workload(uint32_t fb_address) {
-@@ -393,6 +437,7 @@ bool renderer::RT64Context::update_config(const ultramodern::renderer::GraphicsC
+@@ -393,6 +445,7 @@ bool renderer::RT64Context::update_config(const ultramodern::renderer::GraphicsC
  void renderer::RT64Context::enable_instant_present() {
      // Enable the present early presentation mode for minimal latency.
      app->enhancementConfig.presentation.mode = RT64::EnhancementConfiguration::Presentation::Mode::PresentEarly;

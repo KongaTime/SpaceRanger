@@ -62,6 +62,37 @@ The game is `build-native/Release/SpaceRanger.exe`. To make a player zip without
 ROM data, run `tools/package_release.ps1`. It packages the exe as
 `SpaceRanger.exe` inside a `SpaceRanger` folder.
 
+## Linux
+
+The same sources build on Linux with clang (tested with clang 20 on Ubuntu
+24.04). RT64 draws through SDL's Vulkan surface there. Packages: `cmake`,
+`ninja-build`, `clang-20`, `libsdl2-dev`, `libgtk-3-dev` (RT64's file
+dialog) and `libfreetype-dev`.
+
+```bash
+tools/setup_deps.sh                                   # step 2: every dependency, patched
+cmake -S tools/N64Recomp -B build/N64Recomp -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build/N64Recomp                         # N64Recomp and RSPRecomp
+# step 3 with your ROM, or for a build that cannot run the game:
+tools/make_skeleton_recomp.sh                         # ROM-free skeleton, NOP bodies
+cmake -S . -B build-linux -G Ninja -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_C_COMPILER=clang-20 -DCMAKE_CXX_COMPILER=clang++-20
+cmake --build build-linux --target spaceranger
+```
+
+`tools/make_skeleton_recomp.sh` runs the recompilers on an all-zero image
+with the project's own config, so the generated tree has every function,
+overlay and hook of the real one and compiles and links the same way, but
+contains no game code. It is for checking that the program builds (Linux, the
+PS5) without a ROM; it does not run the game.
+
+Changes to a dependency are committed on its `spaceranger` branch (which
+`tools/setup_deps.sh` creates) and exported with `tools/export_dep_patches.sh`.
+
+The Stage61 harness in `src/stage79_first_vi_audio_wakeup.cpp`, which
+`main()` no longer calls, uses Windows APIs and is built on Windows only
+(`TS2_STAGE61_HARNESS`).
+
 ## Testing tools
 
 - `TS2_INPUT_RECORD=<file>` records controller input, frame-tagged.

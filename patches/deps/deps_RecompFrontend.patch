@@ -338,8 +338,37 @@ index 277a421..612babd 100644
  }
  
  void recompui::set_render_hooks() {
+diff --git a/recompui/src/composites/ui_mod_installer.cpp b/recompui/src/composites/ui_mod_installer.cpp
+index 1f98b3c..aae7a19 100644
+--- a/recompui/src/composites/ui_mod_installer.cpp
++++ b/recompui/src/composites/ui_mod_installer.cpp
+@@ -15,6 +15,10 @@ namespace recompui {
+         return file_path.extension() == ".so" || file_path.filename().string().find(".so.") != std::string::npos;
+ #elif defined(__APPLE__)
+         return file_path.extension() == ".dylib";
++#elif defined(__PROSPERO__)
++        // A PS5 title loads no libraries of its own: no native mods
++        (void)file_path;
++        return false;
+ #else
+         static_assert(false, "Unimplemented for this platform.");
+ #endif
+diff --git a/recompui/src/composites/ui_mod_menu.cpp b/recompui/src/composites/ui_mod_menu.cpp
+index 02455fd..2e6ec10 100644
+--- a/recompui/src/composites/ui_mod_menu.cpp
++++ b/recompui/src/composites/ui_mod_menu.cpp
+@@ -298,6 +298,9 @@ void ModMenu::open_mods_folder() {
+ #elif defined(__APPLE__)
+     std::string command = "open \"" + mods_directory.string() + "\"";
+     std::system(command.c_str());
++#elif defined(__PROSPERO__)
++    // The PS5 opens no folders: mods are copied in over FTP.
++    (void)mods_directory;
+ #else
+     static_assert(false, "Not implemented for this platform.");
+ #endif
 diff --git a/recompui/src/renderer/rt64_render_context.cpp b/recompui/src/renderer/rt64_render_context.cpp
-index a7954c7..7c27418 100644
+index a7954c7..a82643f 100644
 --- a/recompui/src/renderer/rt64_render_context.cpp
 +++ b/recompui/src/renderer/rt64_render_context.cpp
 @@ -1,9 +1,12 @@
@@ -382,7 +411,16 @@ index a7954c7..7c27418 100644
      switch (mode) {
          case ultramodern::renderer::PresentationMode::Console:
              return RT64::EnhancementConfiguration::Presentation::Mode::Console;
-@@ -337,11 +359,41 @@ renderer::RT64Context::RT64Context(uint8_t* rdram, ultramodern::renderer::Window
+@@ -225,6 +247,8 @@ renderer::RT64Context::RT64Context(uint8_t* rdram, ultramodern::renderer::Window
+     RT64::Application::Core appCore{};
+ #if defined(_WIN32)
+     appCore.window = window_handle.window;
++#elif defined(__PROSPERO__)
++    appCore.window = plume::RenderWindow{ window_handle.width, window_handle.height };
+ #elif defined(__linux__) || defined(__ANDROID__)
+     appCore.window = window_handle;
+ #elif defined(__APPLE__)
+@@ -337,11 +361,41 @@ renderer::RT64Context::RT64Context(uint8_t* rdram, ultramodern::renderer::Window
  
  renderer::RT64Context::~RT64Context() = default;
  
@@ -425,7 +463,7 @@ index a7954c7..7c27418 100644
  }
  
  void renderer::RT64Context::send_dummy_workload(uint32_t fb_address) {
-@@ -393,6 +445,7 @@ bool renderer::RT64Context::update_config(const ultramodern::renderer::GraphicsC
+@@ -393,6 +447,7 @@ bool renderer::RT64Context::update_config(const ultramodern::renderer::GraphicsC
  void renderer::RT64Context::enable_instant_present() {
      // Enable the present early presentation mode for minimal latency.
      app->enhancementConfig.presentation.mode = RT64::EnhancementConfiguration::Presentation::Mode::PresentEarly;
@@ -481,3 +519,55 @@ index cace84f..dd9f92f 100644
          }
      }
      return nullptr;
+diff --git a/recompui/src/util/file.cpp b/recompui/src/util/file.cpp
+index 7ee84ed..3573626 100644
+--- a/recompui/src/util/file.cpp
++++ b/recompui/src/util/file.cpp
+@@ -1,7 +1,9 @@
+ #include "file.h"
+ 
+ #include <SDL.h>
++#if !defined(__PROSPERO__)
+ #include "nfd.h"
++#endif
+ #include "RmlUi/Core.h"
+ 
+ #include "recompui/program_config.h"
+@@ -20,6 +22,16 @@
+ #endif
+ 
+ namespace recompui {
++#if defined(__PROSPERO__)
++    // The PS5 has no file dialogs: every dialog is cancelled.
++    static void perform_file_dialog_operation(const std::function<void(bool, const std::filesystem::path&)>& callback) {
++        callback(false, std::filesystem::path{});
++    }
++
++    static void perform_file_dialog_operation_multiple(const std::function<void(bool, const std::list<std::filesystem::path>&)>& callback) {
++        callback(false, std::list<std::filesystem::path>{});
++    }
++#else
+     static void perform_file_dialog_operation(const std::function<void(bool, const std::filesystem::path&)>& callback) {
+         nfdnchar_t* native_path = nullptr;
+         nfdresult_t result = NFD_OpenDialogN(&native_path, nullptr, 0, nullptr);
+@@ -57,6 +69,7 @@ namespace recompui {
+ 
+         callback(success, paths);
+     }
++#endif
+ 
+     std::filesystem::path file::get_app_folder_path() {
+         // directly check for portable.txt (windows and native linux binary)
+@@ -74,7 +87,11 @@ namespace recompui {
+ 
+         std::filesystem::path recomp_dir{};
+ 
+-#if defined(_WIN32)
++#if defined(__PROSPERO__)
++        // A title sees its own folder (/data/homebrew/<TITLE_ID>, mounted at
++        // /app0) and nothing else of /data: settings and saves live there.
++        recomp_dir = std::filesystem::path{"/app0"};
++#elif defined(_WIN32)
+         // Deduce local app data path.
+         PWSTR known_path = NULL;
+         HRESULT result = SHGetKnownFolderPath(FOLDERID_LocalAppData, 0, NULL, &known_path);

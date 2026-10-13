@@ -369,10 +369,19 @@ index 43509ba..fca0b9b 100644
              ultramodern::enqueue_external_message_src(mq, 0, false, ultramodern::EventMessageSource::Pi);
          } else if (physical_addr >= recomp::sram_base) {
 diff --git a/librecomp/src/recomp.cpp b/librecomp/src/recomp.cpp
-index ea1c49b..64d4495 100644
+index ea1c49b..0109a19 100644
 --- a/librecomp/src/recomp.cpp
 +++ b/librecomp/src/recomp.cpp
-@@ -473,7 +473,23 @@ std::string current_game_mode_id;
+@@ -28,6 +28,8 @@
+ #ifdef _WIN32
+ #    define WIN32_LEAN_AND_MEAN
+ #    include <Windows.h>
++#elif defined(__PROSPERO__)
++#    include <ps5platform/shm.h>
+ #else
+ #    include <sys/mman.h>
+ #endif
+@@ -473,7 +475,23 @@ std::string current_game_mode_id;
  std::optional<std::u8string> current_game = std::nullopt;
  std::atomic<GameStatus> game_status = GameStatus::None;
  
@@ -396,7 +405,7 @@ index ea1c49b..64d4495 100644
      auto find_it = game_roms.find(current_game.value());
      const recomp::GameEntry& game_entry = find_it->second;
      
-@@ -551,8 +567,13 @@ bool ultramodern::is_game_started() {
+@@ -551,8 +569,13 @@ bool ultramodern::is_game_started() {
  std::atomic_bool exited = false;
  moodycamel::LightweightSemaphore graphics_shutdown_ready;
  
@@ -410,6 +419,36 @@ index ea1c49b..64d4495 100644
      GameStatus desired = GameStatus::None;
      game_status.compare_exchange_strong(desired, GameStatus::Quit);
      game_status.notify_all();
+@@ -843,6 +866,19 @@ void recomp::start(const recomp::Configuration& cfg) {
+             VirtualFree(rdram, 0, MEM_RELEASE);
+         }
+     }
++#elif defined(__PROSPERO__)
++    // The PS5: an anonymous mapping is charged to the title's small flexible
++    // budget (about 448 MiB), so the range is reserved and the guest's memory
++    // committed from direct memory by the platform layer (ps5platform/shm.h).
++    void* reserved = nullptr;
++    alloc_failed = (ps5_vrange_reserve(allocation_size, nullptr, 0x10000, &reserved) != 0);
++    rdram = reinterpret_cast<uint8_t*>(reserved);
++    if (!alloc_failed) {
++        alloc_failed = (ps5_vrange_commit(rdram, mem_size, PS5_SHM_READ | PS5_SHM_WRITE) != 0);
++        if (alloc_failed) {
++            ps5_vrange_release(rdram, allocation_size);
++        }
++    }
+ #else
+     rdram = (uint8_t*)mmap(NULL, allocation_size, PROT_NONE, MAP_ANON | MAP_PRIVATE, -1, 0);
+     alloc_failed = rdram == reinterpret_cast<uint8_t*>(MAP_FAILED);
+@@ -896,6 +932,9 @@ void recomp::start(const recomp::Configuration& cfg) {
+ #ifdef _WIN32
+     // VirtualFree returns zero on failure.
+     free_failed = (VirtualFree(rdram, 0, MEM_RELEASE) == 0);
++#elif defined(__PROSPERO__)
++    // The reservation, and the direct memory committed in it.
++    free_failed = (ps5_vrange_release(rdram, allocation_size) != 0);
+ #else
+     // munmap returns -1 on failure.
+     free_failed = (munmap(rdram, allocation_size) == -1);
 diff --git a/librecomp/src/sp.cpp b/librecomp/src/sp.cpp
 index ae0f44f..7b8533d 100644
 --- a/librecomp/src/sp.cpp
@@ -503,6 +542,25 @@ index 1f3a4cf..3af5c5a 100644
      osViSwapBuffer(rdram, (int32_t)ctx->r4);
  }
  
+diff --git a/ultramodern/include/ultramodern/renderer_context.hpp b/ultramodern/include/ultramodern/renderer_context.hpp
+index d60c4ec..45bca40 100644
+--- a/ultramodern/include/ultramodern/renderer_context.hpp
++++ b/ultramodern/include/ultramodern/renderer_context.hpp
+@@ -54,6 +54,14 @@ namespace ultramodern {
+             auto operator<=>(const WindowHandle&) const = default;
+         };
+ // TODO add a native window handle option here (Display/Window for x11 and ANativeWindow for Android) as a compile-time option.
++#elif defined(__PROSPERO__)
++        // The PS5: one display and no windows. The size asked of it, which
++        // plume's VK_KHR_display surface finds a mode for (plume::RenderWindow).
++        struct WindowHandle {
++            uint32_t width;
++            uint32_t height;
++            auto operator<=>(const WindowHandle&) const = default;
++        };
+ #elif defined(__linux__) || defined(__ANDROID__)
+         using WindowHandle = SDL_Window*;
+ #elif defined(__APPLE__)
 diff --git a/ultramodern/include/ultramodern/ultramodern.hpp b/ultramodern/include/ultramodern/ultramodern.hpp
 index 46aea61..bf97273 100644
 --- a/ultramodern/include/ultramodern/ultramodern.hpp
@@ -773,7 +831,7 @@ index 9944a02..b70c458 100644
      }
  }
 diff --git a/ultramodern/src/threads.cpp b/ultramodern/src/threads.cpp
-index 6e3ed18..a4c6707 100644
+index 6e3ed18..60538af 100644
 --- a/ultramodern/src/threads.cpp
 +++ b/ultramodern/src/threads.cpp
 @@ -33,6 +33,7 @@ thread_local bool is_entrypoint_thread = false;
@@ -784,7 +842,23 @@ index 6e3ed18..a4c6707 100644
  
  void ultramodern::set_entrypoint_thread() {
      ::is_game_thread = true;
-@@ -224,7 +225,9 @@ static void _thread_func(RDRAM_ARG PTR(OSThread) self_, PTR(thread_func_t) entry
+@@ -137,6 +138,15 @@ void ultramodern::set_native_thread_priority(ThreadPriority pri) {
+     //         break;
+     // }
+ }
++#elif defined(__PROSPERO__)
++#include <pthread_np.h>
++
++void ultramodern::set_native_thread_name(const std::string& name) {
++    // FreeBSD's names, which the console's crash reports and klog show
++    pthread_set_name_np(pthread_self(), name.c_str());
++}
++
++void ultramodern::set_native_thread_priority(ThreadPriority pri) {}
+ #elif defined(__APPLE__)
+ void ultramodern::set_native_thread_name(const std::string& name) {
+     if (name.length() > 15) {
+@@ -224,7 +234,9 @@ static void _thread_func(RDRAM_ARG PTR(OSThread) self_, PTR(thread_func_t) entry
      // so mark this thread as destroyed and run the next queued thread.
      if (self->context == thread_context) {
          self->context = nullptr;
@@ -795,7 +869,7 @@ index 6e3ed18..a4c6707 100644
      }
  
      // Dispose of this thread now that it's completed or terminated.
-@@ -244,12 +247,21 @@ extern "C" void osStartThread(RDRAM_ARG PTR(OSThread) t_) {
+@@ -244,12 +256,21 @@ extern "C" void osStartThread(RDRAM_ARG PTR(OSThread) t_) {
      else {
          t->state = OSThreadState::QUEUED;
          resume_thread(t);

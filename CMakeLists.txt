@@ -13,6 +13,11 @@
 cmake_minimum_required(VERSION 3.20)
 project(SpaceRanger LANGUAGES C CXX)
 
+# The PlayStation 5: the payload SDK's toolchain sets PS5 (docs/PS5.md)
+if(PS5)
+    include(ps5/cmake/ps5.cmake)
+endif()
+
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 20)

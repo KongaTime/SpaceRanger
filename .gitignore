@@ -3,6 +3,7 @@
 /build-native/
 /build-linux/
 /build-ps5/
+/dist/
 /out/
 
 # User-supplied ROMs
@@ -37,6 +38,8 @@ __pycache__/
 *.jpg
 *.jpeg
 *.png
+# ...except the PS5 title's home-screen icon (ps5/tools/make-title-art.py, the project's own art)
+!/ps5/sce_sys/icon0.png
 *.wav
 *.mp4
 *.bin
@@ -62,3 +65,4 @@ docs/audio-captures/
 docs/audio_frames.jpg
 docs/audio.err
 docs/func-scan.json
+/.deps/

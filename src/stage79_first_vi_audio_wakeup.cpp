@@ -52,6 +52,11 @@ static std::filesystem::path ts2_exe_dir() {
     if (length > 0 && length < MAX_PATH) {
         return std::filesystem::path(buffer).parent_path();
     }
+#elif defined(__PROSPERO__)
+    // The PS5: the title's folder (/data/homebrew/<TITLE_ID>) is mounted at
+    // /app0, and it is all of /data a title can see. The ROM, the config and
+    // the assets live there.
+    return std::filesystem::path("/app0");
 #endif
     return std::filesystem::current_path();
 }
@@ -16718,6 +16723,11 @@ static ultramodern::renderer::WindowHandle ts2_v79_create_window(
         wm_info.info.win.window,
         GetCurrentThreadId()
     };
+#elif defined(__PROSPERO__)
+    // The PS5: RT64 presents on the display itself, through plume's
+    // VK_KHR_display surface at the display's 3840x2160 mode. SDL's window
+    // only carries the frontend's events.
+    return ultramodern::renderer::WindowHandle{ 3840, 2160 };
 #else
     // RT64 presents through SDL's Vulkan surface: the handle is the window.
     return window;

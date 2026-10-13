@@ -14,6 +14,7 @@ SpaceRanger is a project that uses [N64: Recompiled](https://github.com/N64Recom
 * [Planned Features](#planned-features)
 * [FAQ](#faq)
 * [Known Issues](#known-issues)
+* [PlayStation 5](#playstation-5)
 * [Building](#building)
 * [Contributing](#contributing)
 * [Libraries Used and Projects Referenced](#libraries-used-and-projects-referenced)
@@ -70,6 +71,9 @@ In the `spaceranger-config` folder next to `SpaceRanger.exe`, along with your se
 * Frame pacing has mostly been tested on one PC. If you see stutter, please [open an issue](../../issues) with your GPU and refresh rate.
 * Overlays such as MSI Afterburner can cause performance issues.
 * Sound effects can sometimes go away.
+
+## PlayStation 5
+A native PS5 homebrew build (jailbroken consoles, RT64 on Mihawk's RADV Vulkan driver) is in `ps5/`. It builds and signs but has not been run on a console yet. See [docs/PS5.md](docs/PS5.md).
 
 ## Building
 Building is not required to play this project; prebuilt binaries, which do not contain game assets, are on the [Releases](../../releases) page. To build it yourself, see [docs/BUILDING.md](docs/BUILDING.md). You'll need your own ROM, since the recompiled game code is generated locally from it and is never committed.

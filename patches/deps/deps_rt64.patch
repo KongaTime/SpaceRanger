@@ -1,8 +1,31 @@
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 79dfc38..0575372 100644
+index 79dfc38..cd5b9f8 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
-@@ -353,6 +353,7 @@ set (SOURCES
+@@ -69,9 +69,20 @@ set(ZSTD_LEGACY_SUPPORT OFF)
+ set(ZSTD_BUILD_STATIC ON)
+ set(ZSTD_BUILD_SHARED OFF)
+ 
+-add_subdirectory(src/tools/file_to_c)
++if (CMAKE_CROSSCOMPILING)
++    # The build runs file_to_c, so a cross build (the PS5) takes one built for
++    # the build machine: RT64_FILE_TO_C, or file_to_c on the PATH.
++    find_program(RT64_FILE_TO_C file_to_c REQUIRED NO_CMAKE_FIND_ROOT_PATH)
++    add_executable(file_to_c IMPORTED GLOBAL)
++    set_target_properties(file_to_c PROPERTIES IMPORTED_LOCATION "${RT64_FILE_TO_C}")
++else()
++    add_subdirectory(src/tools/file_to_c)
++endif()
+ add_subdirectory(src/contrib/re-spirv)
+-add_subdirectory(src/contrib/nativefiledialog-extended)
++# The PS5 has no file dialogs (src/gui/rt64_file_dialog.cpp)
++if (NOT PS5)
++    add_subdirectory(src/contrib/nativefiledialog-extended)
++endif()
+ add_subdirectory(src/contrib/zstd/build/cmake)
+ 
+ if (CMAKE_SYSTEM_NAME MATCHES "Linux" AND RT64_SDL_WINDOW_VULKAN)
+@@ -353,6 +364,7 @@ set (SOURCES
      "${PROJECT_SOURCE_DIR}/src/hle/rt64_framebuffer_pair.cpp"
      "${PROJECT_SOURCE_DIR}/src/hle/rt64_framebuffer_storage.cpp"
      "${PROJECT_SOURCE_DIR}/src/hle/rt64_game_frame.cpp"
@@ -10,6 +33,150 @@ index 79dfc38..0575372 100644
      "${PROJECT_SOURCE_DIR}/src/hle/rt64_interpreter.cpp"
      "${PROJECT_SOURCE_DIR}/src/hle/rt64_light_manager.cpp"
      "${PROJECT_SOURCE_DIR}/src/hle/rt64_present_queue.cpp"
+@@ -441,7 +453,9 @@ set_target_properties(rt64 PROPERTIES PREFIX "")
+ 
+ # Add common libraries.
+ target_link_libraries(rt64 re-spirv)
+-target_link_libraries(rt64 nfd)
++if (NOT PS5)
++    target_link_libraries(rt64 nfd)
++endif()
+ target_link_libraries(rt64 libzstd_static)
+ target_link_libraries(rt64 plume)
+ 
+diff --git a/src/common/rt64_thread.cpp b/src/common/rt64_thread.cpp
+index c4b080b..5b2f290 100644
+--- a/src/common/rt64_thread.cpp
++++ b/src/common/rt64_thread.cpp
+@@ -12,6 +12,9 @@
+ #   include "utf8conv/utf8conv.h"
+ #elif defined(__linux__)
+ #   include <pthread.h>
++#elif defined(__PROSPERO__)
++#   include <pthread.h>
++#   include <pthread_np.h>
+ #endif
+ 
+ namespace RT64 {
+@@ -47,6 +50,8 @@ namespace RT64 {
+         pthread_setname_np(pthread_self(), str.c_str());
+ #   elif defined(__APPLE__)
+         pthread_setname_np(str.c_str());
++#   elif defined(__PROSPERO__)
++        pthread_set_name_np(pthread_self(), str.c_str());
+ #   else
+         static_assert(false, "Unimplemented");
+ #   endif
+@@ -55,7 +60,7 @@ namespace RT64 {
+     void Thread::setCurrentThreadPriority(Priority priority) {
+ #   if defined(_WIN32)
+         SetThreadPriority(GetCurrentThread(), toWindowsPriority(priority));
+-#   elif defined(__linux__) || defined(__APPLE__)
++#   elif defined(__linux__) || defined(__APPLE__) || defined(__PROSPERO__)
+         // On Linux, thread priorities can't be changed under the default scheduler policy (SCHED_OTHER) and the other policies
+         // that are available without root privileges are lower priority. Instead you can set the thread's "nice" value, which ranges
+         // from -20 to 19 (lower being higher priority). However, by strict POSIX spec "nice" is meant to be per-process instead of
+diff --git a/src/gui/rt64_file_dialog.cpp b/src/gui/rt64_file_dialog.cpp
+index 72faede..d861248 100644
+--- a/src/gui/rt64_file_dialog.cpp
++++ b/src/gui/rt64_file_dialog.cpp
+@@ -6,6 +6,32 @@
+ 
+ #include <cassert>
+ 
++#if defined(__PROSPERO__)
++
++namespace RT64 {
++    // The PS5 has no file dialogs: every dialog is cancelled.
++
++    std::atomic<bool> FileDialog::isOpen = false;
++
++    void FileDialog::initialize() { }
++
++    void FileDialog::finish() { }
++
++    std::filesystem::path FileDialog::getDirectoryPath() {
++        return std::filesystem::path();
++    }
++
++    std::filesystem::path FileDialog::getOpenFilename(const std::vector<FileFilter> &filters) {
++        return std::filesystem::path();
++    }
++
++    std::filesystem::path FileDialog::getSaveFilename(const std::vector<FileFilter> &filters) {
++        return std::filesystem::path();
++    }
++};
++
++#else
++
+ #include <nfd.h>
+ 
+ namespace RT64 {
+@@ -76,4 +102,6 @@ namespace RT64 {
+         isOpen = false;
+         return path;
+     }
+-};
+\ No newline at end of file
++};
++
++#endif
+diff --git a/src/hle/rt64_application_window.cpp b/src/hle/rt64_application_window.cpp
+index 08f83e5..cde1bf1 100755
+--- a/src/hle/rt64_application_window.cpp
++++ b/src/hle/rt64_application_window.cpp
+@@ -105,6 +105,10 @@ namespace RT64 {
+         bounds.height = rect.bottom - rect.top;
+ #   elif defined(__ANDROID__)
+         static_assert(false && "Android unimplemented");
++#   elif defined(__PROSPERO__)
++        // The PS5 has one display and no windows: SDL's window is the screen.
++        bounds.width = Width;
++        bounds.height = Height;
+ #   elif defined(__linux__) || defined(__APPLE__)
+         if (SDL_VideoInit(nullptr) != 0) {
+             printf("Failed to init SDL2 video: %s\n", SDL_GetError());
+@@ -147,6 +151,9 @@ namespace RT64 {
+         windowHandle = wmInfo.info.win.window;
+ #   elif defined(RT64_SDL_WINDOW_VULKAN)
+         windowHandle = sdlWindow;
++#   elif defined(__PROSPERO__)
++        // plume's VK_KHR_display surface at the display's 3840x2160 mode
++        windowHandle = RenderWindow{ 3840, 2160 };
+ #   elif defined(__ANDROID__)
+         static_assert(false && "Android unimplemented");
+ #   elif defined(__linux__)
+@@ -166,6 +173,9 @@ namespace RT64 {
+         uint64_t tid;
+         pthread_threadid_np(nullptr, &tid);
+         setup(windowHandle, listener, tid);
++#   elif defined(__PROSPERO__)
++        // The thread id only matters to the Win32 window hook (pthread_t is a pointer on FreeBSD)
++        setup(windowHandle, listener, 0);
+ #   else
+         setup(windowHandle, listener, pthread_self());
+ #   endif
+@@ -229,6 +239,9 @@ namespace RT64 {
+         fullScreen = newFullScreen;
+ #   elif defined(__APPLE__)
+         windowWrapper->toggleFullscreen();
++#   elif defined(__PROSPERO__)
++        // Always the whole display
++        fullScreen = newFullScreen;
+ #   elif defined(RT64_SDL_WINDOW_VULKAN)
+         if (newFullScreen) {
+             SDL_SetWindowFullscreen(windowHandle, SDL_WINDOW_FULLSCREEN_DESKTOP);
+@@ -294,6 +307,9 @@ namespace RT64 {
+         }
+ 
+         refreshRate = displayMode.refresh_rate;
++#   elif defined(__PROSPERO__)
++        // plume's swap chain takes the display mode nearest 60 Hz
++        refreshRate = 60;
+ #   elif defined(__linux__)
+         // Sourced from: https://stackoverflow.com/a/66865623
+         XRRScreenResources *screenResources = XRRGetScreenResources(windowHandle.display, windowHandle.window);
 diff --git a/src/hle/rt64_game_call.h b/src/hle/rt64_game_call.h
 index 038eace..9d09181 100644
 --- a/src/hle/rt64_game_call.h
